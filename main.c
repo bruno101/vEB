@@ -662,10 +662,9 @@ uint64_t *sucessorVEB (vEB *V, uint64_t chave) {
   sucessor = malloc(sizeof(uint64_t));
 
   if (V->w == 1) {
-    if ( V->min ) {
+    if ( V->max ) {
       if ( (chave == 0) && (*(V->max) == 1) ) {
-        printf("here3 %"PRIu64"\n", *(V->max));
-        *sucessor = *(V->max);
+        *sucessor = 1;
         return sucessor;
       }
     }
@@ -731,6 +730,58 @@ uint64_t *sucessorVEB (vEB *V, uint64_t chave) {
 //retorna NULL caso nao haja predecessor
 uint64_t *predecessorVEB (vEB *V, uint64_t chave) {
 
+  //uint64_t sucessorValor;
+  uint64_t *predecessor;
+  //sucessorValor;
+  predecessor = malloc(sizeof(uint64_t));
+
+  if (V->w == 1) {
+    if ( V->min ) {
+      if ( (chave == 1) && (*(V->min) == 0) ) {
+        *predecessor = 0;
+        return predecessor;
+      }
+    }
+    return NULL;
+  }
+
+  if ( (V->max) && (chave > *(V->max))) {
+    *predecessor = *(V->max);
+    return predecessor;
+  }
+
+  uint64_t minLow;
+  uint64_t offset;
+  uint64_t c = get_c(chave, V->w);
+  uint64_t i = get_i(chave, V->w);
+
+  if (buscaHashTableDinamica(V->cluster, c)) {
+    minLow = *(buscaHashTableDinamica(V->cluster, c)->min);
+    if (i > minLow) {
+      offset = *predecessorVEB(buscaHashTableDinamica(V->cluster, c), i);
+      *predecessor = get_chave(c, offset, V->w);
+      return predecessor;
+    }
+  }
+
+  if (V->resumo) {
+    uint64_t *predCluster = predecessorVEB(V->resumo, c);
+    if (predCluster) {
+      offset = *(buscaHashTableDinamica(V->cluster, *predCluster)->max);
+      *predecessor = get_chave(*predCluster, offset, V->w);
+      return predecessor;
+    }
+  }
+
+  if ( (V->min) && (chave > *(V->min)) ) {
+    *predecessor = *(V->min);
+    return predecessor;
+  }
+
+  return NULL;
+
+  /*
+
   uint64_t *predecessor;
 
   uint64_t c = get_c(chave, V->w);
@@ -755,6 +806,7 @@ uint64_t *predecessorVEB (vEB *V, uint64_t chave) {
   } else {
     return NULL;
   }
+  */
 
 }
 
@@ -792,13 +844,7 @@ int main(int argc, char **argv) {
   insereVEB(V,3);
   insereVEB(V,2);
 
-  for (int i=0; i<18; i++) {
-    if (!sucessorVEB(V, i)) {
-      printf("Sucessor de %d é: NULL", i);
-      continue;
-    }
-    printf("Sucessor de %d é: %"PRIu64"", i, *sucessorVEB(V, i));
-  }
+
 /*
   for (int i = 0; i < 16; i=i+1) {
     insereVEB(V,i);
