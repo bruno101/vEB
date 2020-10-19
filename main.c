@@ -6,10 +6,7 @@
 #include <inttypes.h>
 #include "estruturas.h"
 
-//esse eh o arquivo que iremos escrever
-//o deixamos como variavel global
-
-//também deixaremos as tabelas aleatórias como variáveis globais
+//deixaremos as tabelas aleatórias como variáveis globais
 uint64_t tabelasAleatorias[8][0x100];
 
 struct pos_tabela {
@@ -170,14 +167,15 @@ int insereHashTable (HashTable *H, uint64_t chave, vEB *V) {
 //limpamos os codigos de remocao simplesmente reconstruindo a tabela
 void limpaCodigosRemocao (HashTable *H) {
 
-  uint64_t* tabelaAuxiliar = malloc(sizeof(uint64_t)*H->tamanho); 
+  posTabela* tabelaAuxiliar = malloc(sizeof(tabelaAuxiliar)*H->tamanho); 
 
   uint64_t cont = 0;
   for (uint64_t i = 0; i < H->tamanho; i++) {
 
     if (H->tabela[i].flag == 2) {
       //Adicionando todas as chaves a tabela auxiliar
-      tabelaAuxiliar[cont] = H->tabela[i].chave;
+      tabelaAuxiliar[cont].chave = H->tabela[i].chave;
+      tabelaAuxiliar[cont].V = H->tabela[i].V;
       cont++;
     }
     H->tabela[i].chave = 0;
@@ -188,12 +186,13 @@ void limpaCodigosRemocao (HashTable *H) {
 
   for (uint64_t i = 0; i < cont; i++) {
     //Reinserimos todas as chaves
-    insereHashTable(H, tabelaAuxiliar[i], 0);
+    insereHashTable(H, tabelaAuxiliar[i].chave, tabelaAuxiliar[i].V);
+    //free(tabelaAuxiliar[i].V);
   }
 
-  H->numeroDeCodigosDeRemocao = 0;
-
   free(tabelaAuxiliar);
+
+  H->numeroDeCodigosDeRemocao = 0;
 
 }
 
@@ -420,11 +419,11 @@ void printVEB (vEB *V) {
     printf("\nNO CLUSTER\n");
   } else {
     for (int i = 0; i < pow(2,V->w/2); i++) {
-      printf("\nCLUSTER %d\n", i);
       if (buscaHashTableDinamica(V->cluster, i)) {
+        printf("\nCLUSTER %d\n", i);
         printVEB(buscaHashTableDinamica(V->cluster, i));
       } else {
-        printf("\nCLUSTER VAZIO\n");
+        //printf("\nCLUSTER VAZIO\n");
       }
     }
   }
@@ -438,22 +437,22 @@ void printVEB (vEB *V) {
 
 
 //c, seguindo a nomenclatura vista em sala, corresponde ao numero formado pelos primeiros w/2 bits da chave
-uint64_t get_c (uint64_t chave, uint64_t w) {
+uint64_t getC (uint64_t chave, uint64_t w) {
 
   return chave >> (w/2);
 }
 
 //i, seguindo a nomenclatura vista em sala, corresponde ao numero formado pelos ultimos w/2 bits da chave
-uint64_t get_i (uint64_t chave, uint64_t w) {
+uint64_t getI (uint64_t chave, uint64_t w) {
 
-  uint64_t c = get_c(chave, w);
+  uint64_t c = getC(chave, w);
 
   return chave - ( c << (w/2) );
 
 }
 
 //obtem-se a chave a partir do 'c' e do 'i'
-uint64_t get_chave (uint64_t c, uint64_t i, uint64_t w) {
+uint64_t getChave (uint64_t c, uint64_t i, uint64_t w) {
 
   return i + (c << w/2);
 
@@ -463,7 +462,7 @@ int buscaVEB (vEB *V, uint64_t chave) {
 
   if (V->min) {
     if ( (chave == *(V->min)) || (chave == *(V->max)) ) {
-      printf("Elemento encontrado");
+      //printf("Elemento encontrado");
       return 1;
     }
   }
@@ -472,8 +471,8 @@ int buscaVEB (vEB *V, uint64_t chave) {
     return 0;
   }
 
-  uint64_t c = get_c(chave, V->w);
-  uint64_t i = get_i(chave, V->w);
+  uint64_t c = getC(chave, V->w);
+  uint64_t i = getI(chave, V->w);
 
   if (!buscaHashTableDinamica(V->cluster, c)) {
     return 0;
@@ -510,8 +509,8 @@ int insereElementoNaoArmazenadoVEB (vEB *V, uint64_t chave, vEB *X) {
 
     if (V->w > 1) {
 
-      uint64_t c = get_c(chave, V->w);
-      uint64_t i = get_i(chave, V->w);
+      uint64_t c = getC(chave, V->w);
+      uint64_t i = getI(chave, V->w);
 
       if (!buscaHashTableDinamica(V->cluster, c)) {
 
@@ -585,8 +584,8 @@ void insereVEB (vEB *V, uint64_t chave) {
       *(V->max) = chave;
     }
 
-    uint64_t c = get_c(chave, V->w);
-    uint64_t i = get_i(chave, V->w);
+    uint64_t c = getC(chave, V->w);
+    uint64_t i = getI(chave, V->w);
 
     if ( !buscaHashTableDinamica(V->cluster, c) ) {
       if ( !(V->resumo) ) {
@@ -605,10 +604,91 @@ void insereVEB (vEB *V, uint64_t chave) {
 }
 */
 
-int removeVEB (vEB *V, uint64_t chave) {
+//retorna 0
+int removeElementoArmazenadoVEB (vEB *V, uint64_t chave) {
 
-  uint64_t c = get_c(chave, V->w);
-  uint64_t i = get_i(chave, V->w);
+  if (!buscaVEB(V, chave)) {
+    return 0;
+  }
+
+  if ( (V->min) && (*(V->min) == *(V->max)) ) {
+    V->min = NULL;
+    V->max = NULL;
+    return 0;
+  }
+
+  if (V->w == 1) {
+
+    if (chave == 0) {
+      *(V->min) = 1;
+    } else {
+      *(V->min) = 0;
+    }
+    *(V->max) = *(V->min);
+    return 0;
+
+  }
+
+  if ( (V->min) && (*(V->min) == chave) ) {
+
+    if (V->resumo) {
+      uint64_t firstCluster = *(V->resumo->min);
+      chave = getChave(firstCluster, *(buscaHashTableDinamica(V->cluster, firstCluster)->min), V->w);
+      *(V->min) = chave;
+    }
+
+  }
+
+  uint64_t c = getC(chave, V->w);
+  uint64_t i = getI(chave, V->w);
+
+  removeElementoArmazenadoVEB( buscaHashTableDinamica(V->cluster, c) , i);
+
+  if ( !(buscaHashTableDinamica(V->cluster, c)->min) ) {
+
+    vEB *arvoreVazia = buscaHashTableDinamica(V->cluster, c);
+    removeHashTableDinamica(V->cluster, c);
+    deletaVEB(arvoreVazia);
+    removeElementoArmazenadoVEB(V->resumo, c);
+
+    if ( !(V->resumo->min) ) {
+      deletaVEB(V->resumo);
+      V->resumo = NULL;
+    }
+
+    if ( (V->max) && (chave == *(V->max) ) ) {
+
+      uint64_t *summaryMax;
+      if (V->resumo) {
+        summaryMax = V->resumo->max;
+      } else {
+        summaryMax = NULL;
+      }
+
+      if (summaryMax) {
+        *(V->max) = getChave(*summaryMax, *(buscaHashTableDinamica(V->cluster, *summaryMax)->max), V->w);
+      } else {
+        if (V->max) {
+          *(V->max) = *(V->min);
+        }
+      }
+
+      return 0;
+
+    }
+
+  }
+
+  if ( (V->max) && (chave == *(V->max)) ) {
+    *(V->max) = getChave(c, *(buscaHashTableDinamica(V->cluster, c)->max),V->w);
+    return 0;
+  }
+
+  return 0;
+
+/*
+  uint64_t c = getC(chave, V->w);
+  uint64_t i = getI(chave, V->w);
 
   if (V->min == NULL) {
     return 0;
@@ -620,7 +700,7 @@ int removeVEB (vEB *V, uint64_t chave) {
 
       c = *(V->resumo->min);
       i = *(buscaHashTableDinamica(V->cluster, c)->min);
-      *(V->min) = get_chave(c, i, V->w);
+      *(V->min) = getChave(c, i, V->w);
       chave = *(V->min);
 
     } else {
@@ -645,12 +725,18 @@ int removeVEB (vEB *V, uint64_t chave) {
       deletaVEB(V->resumo);
     } else {
       uint64_t novo_c = *(V->resumo->max);
-      *(V->max) = get_chave(novo_c, *(buscaHashTableDinamica(V->cluster, novo_c)->max), V->w);
+      *(V->max) = getChave(novo_c, *(buscaHashTableDinamica(V->cluster, novo_c)->max), V->w);
     }
   }
 
   return 0;
+*/
+}
 
+void removeVEB (vEB *V, uint64_t chave) {
+  if (buscaVEB(V, chave)) {
+    removeElementoArmazenadoVEB(V, chave);
+  }
 }
 
 //retorna NULL caso nao haja sucessor
@@ -678,14 +764,14 @@ uint64_t *sucessorVEB (vEB *V, uint64_t chave) {
 
   uint64_t maxLow;
   uint64_t offset;
-  uint64_t c = get_c(chave, V->w);
-  uint64_t i = get_i(chave, V->w);
+  uint64_t c = getC(chave, V->w);
+  uint64_t i = getI(chave, V->w);
 
   if (buscaHashTableDinamica(V->cluster, c)) {
     maxLow = *(buscaHashTableDinamica(V->cluster, c)->max);
     if (i < maxLow) {
       offset = *sucessorVEB(buscaHashTableDinamica(V->cluster, c), i);
-      *sucessor = get_chave(c, offset, V->w);
+      *sucessor = getChave(c, offset, V->w);
       return sucessor;
     }
   }
@@ -694,7 +780,7 @@ uint64_t *sucessorVEB (vEB *V, uint64_t chave) {
     uint64_t *succCluster = sucessorVEB(V->resumo, c);
     if (succCluster) {
       offset = *(buscaHashTableDinamica(V->cluster, *succCluster)->min);
-      *sucessor = get_chave(*succCluster, offset, V->w);
+      *sucessor = getChave(*succCluster, offset, V->w);
       return sucessor;
     }
   }
@@ -712,13 +798,13 @@ uint64_t *sucessorVEB (vEB *V, uint64_t chave) {
   } 
 
   if ( buscaHashTableDinamica(V->cluster, c) && ( i < *(buscaHashTableDinamica(V->cluster, c)->max) ) ) {
-    *sucessor = get_chave(c, *sucessorVEB(buscaHashTableDinamica(V->cluster, c) , i), V->w);
+    *sucessor = getChave(c, *sucessorVEB(buscaHashTableDinamica(V->cluster, c) , i), V->w);
     return sucessor;
   }
 
   if ( (V->resumo != NULL) && (sucessorVEB(V->resumo, c)) ) {
     uint64_t new_c = *sucessorVEB(V->resumo, c);
-    *sucessor = get_chave( new_c, *(buscaHashTableDinamica( V->cluster, new_c)->min), V->w );
+    *sucessor = getChave( new_c, *(buscaHashTableDinamica( V->cluster, new_c)->min), V->w );
     return sucessor;
   } else {
     return NULL;
@@ -752,14 +838,14 @@ uint64_t *predecessorVEB (vEB *V, uint64_t chave) {
 
   uint64_t minLow;
   uint64_t offset;
-  uint64_t c = get_c(chave, V->w);
-  uint64_t i = get_i(chave, V->w);
+  uint64_t c = getC(chave, V->w);
+  uint64_t i = getI(chave, V->w);
 
   if (buscaHashTableDinamica(V->cluster, c)) {
     minLow = *(buscaHashTableDinamica(V->cluster, c)->min);
     if (i > minLow) {
       offset = *predecessorVEB(buscaHashTableDinamica(V->cluster, c), i);
-      *predecessor = get_chave(c, offset, V->w);
+      *predecessor = getChave(c, offset, V->w);
       return predecessor;
     }
   }
@@ -768,7 +854,7 @@ uint64_t *predecessorVEB (vEB *V, uint64_t chave) {
     uint64_t *predCluster = predecessorVEB(V->resumo, c);
     if (predCluster) {
       offset = *(buscaHashTableDinamica(V->cluster, *predCluster)->max);
-      *predecessor = get_chave(*predCluster, offset, V->w);
+      *predecessor = getChave(*predCluster, offset, V->w);
       return predecessor;
     }
   }
@@ -784,8 +870,8 @@ uint64_t *predecessorVEB (vEB *V, uint64_t chave) {
 
   uint64_t *predecessor;
 
-  uint64_t c = get_c(chave, V->w);
-  uint64_t i = get_i(chave, V->w);
+  uint64_t c = getC(chave, V->w);
+  uint64_t i = getI(chave, V->w);
 
   if ( V->min == NULL ) {
     return NULL;
@@ -796,12 +882,12 @@ uint64_t *predecessorVEB (vEB *V, uint64_t chave) {
   } 
 
   if ( buscaHashTableDinamica(V->cluster, c) && ( i > *(buscaHashTableDinamica(V->cluster, c)->min) ) ) {
-    *predecessor = get_chave( c, *predecessorVEB(buscaHashTableDinamica(V->cluster, c) , i), V->w);
+    *predecessor = getCchave( c, *predecessorVEB(buscaHashTableDinamica(V->cluster, c) , i), V->w);
   }
 
   if ( (V->resumo != NULL) && (predecessorVEB(V->resumo, c)) ) {
     uint64_t new_c = *predecessorVEB(V->resumo, c);
-    *predecessor = get_chave( new_c, *(buscaHashTableDinamica( V->cluster, new_c)->max), V->w );
+    *predecessor = getChave( new_c, *(buscaHashTableDinamica( V->cluster, new_c)->max), V->w );
     return predecessor;
   } else {
     return NULL;
@@ -821,55 +907,7 @@ int main(int argc, char **argv) {
   }
 
   
-  vEB *V = criaVEB(4);
-
-/*
-  for (int i=0; i<6; i=i+2) {
-    printf("\n%d", i);
-    insereVEB(V, i);
-  }
-  */
-
-  insereVEB(V,5);
-  insereVEB(V,7);
-  insereVEB(V,15);
-  insereVEB(V,3);
-  insereVEB(V,2);
-  insereVEB(V,14);
-  insereVEB(V,4);
-  insereVEB(V,15);
-  insereVEB(V,3);
-  insereVEB(V,2);
-  insereVEB(V,14);
-  insereVEB(V,3);
-  insereVEB(V,2);
-
-
-/*
-  for (int i = 0; i < 16; i=i+1) {
-    insereVEB(V,i);
-  }
-
-  printf("HERE");
-
-  for (int i = 0; i < 16; i=i+1) {
-    insereVEB(V,i);
-  }
-  */
-
-
-  /*
-  for (int i=0; i<16; i=i+2) {
-    printf("\n%d", i);
-    insereVEB(V, i);
-  }
-  for (int i=1; i<16; i=i+2) {
-    printf("\n%d", i);
-    insereVEB(V, i);
-  }
-  */
-
-  //printVEB(V);
+  vEB *V = criaVEB(64);
 
   /*
 
