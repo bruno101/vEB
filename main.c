@@ -496,6 +496,10 @@ int insereVEB (vEB *V, uint64_t chave) {
         insereVEB(V->resumo, c);
 
         insereHashTableDinamica(V->cluster, c, criaVEB((V->w)/2) );
+        
+        if (!insereVEB(buscaHashTableDinamica(V->cluster, c), i)) {
+          return 0;
+        }
 
         return 1;
       }
