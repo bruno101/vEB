@@ -497,11 +497,6 @@ int insereVEB (vEB *V, uint64_t chave) {
 
         insereHashTableDinamica(V->cluster, c, criaVEB((V->w)/2) );
 
-        if (!insereVEB(buscaHashTableDinamica(V->cluster, c), i)) {
-          printf("essa linha nao deveria ser executada");
-          return 0;
-        }
-
         return 1;
       }
 
